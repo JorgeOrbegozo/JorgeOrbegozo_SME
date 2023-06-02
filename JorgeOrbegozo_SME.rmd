@@ -1,0 +1,473 @@
+---
+title: "JorgeOrbegozo_SME"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-06-02"
+---
+
+## Software matemático y estadístico
+En este notebook se va a realizar el trabajo de python de la asignatura de Software Matemático y Estadístico (SME).
+Lo primero de todo es importar las librerias que vamos a usar.
+
+```{r setup, include=FALSE}
+library(graphics)
+```
+
+Para realizar este trabajo se van a utilizar datos random con los que vamos a generar diferentes datasets y dataframes. Por esto mismo vamos a poner una seed, para que al realizar las ejecuciones den siempre los mismos resultados.
+
+```{r}
+set.seed(33)
+```
+
+Vamos a empezar defininiendo las funciones que generan la información que vamos a necesitar pasar a las funciones. Para generar un dataset tenemos que indicar en número de filas y de columnas que queremos.
+
+```{r}
+create_dataset <- function(num_rows, num_columns) {
+  #Creamos un data frame vacío que almacenará los datos del dataset
+  data <- data.frame()
+  
+  #Generamos los datos del dataset
+  for (i in 1:num_rows) {
+    row <- data.frame(matrix(nrow = 1, ncol = num_columns))
+    colnames(row) <- paste0("V", 1:num_columns)
+    for (j in 1:num_columns) {
+      # Generamos un número aleatorio para cada columna
+      value <- sample(0:100, 1)
+      row[, j] <- value
+    } 
+    # Añadimos la fila al dataset
+    data <- rbind(data, row)
+  }
+  
+  #Devolvemos el dataset
+  return(data)
+}
+```
+
+Sin embargo, a la hora de crear el Dataframe, necesitamos pasarle a la función los parámetros i, j y n, donde i es el número más bajo que puede aparecer, j el más altó y n el número fílas que queremos generar. En todo caso, siempre se van a generar Dataframes de 2 columnas.
+
+```{r}
+generate_df <- function(i, j, n) {
+  set.seed(33)
+  rows <- data.frame(value = sample(i:j, n, replace = TRUE), label = sample(c(TRUE, FALSE), n, replace = TRUE))
+  return(rows)
+}
+```
+
+Ahora que ya tenemos definidas la funcion que crea datasets, vamos a generar los dataset que vamos a usar en las funciones.
+
+```{r}
+df <- generate_df(0, 100, 150)
+df
+dataset <- create_dataset(5, 15)
+dataset
+set.seed(33)
+array <- sample(1:100, 50, replace=TRUE)
+array
+```
+
+Ahora empezamos a crear básicas indicadas en la asignatura.
+En la siguiente función, recibimos como entrada un vector de tipo numérico y un número de intervalos para implementar la discretización del propio vector que se da como entrada mediante el método equal width.
+
+```{r}
+discretizeEW <- function(data, num_intervals) {
+  # Calcula el rango de valores
+  data_min <- min(data)
+  data_max <- max(data)
+  inter <- as.integer((data_max - data_min) / num_intervals)
+  x_discretized <- list()
+  
+  # Inicializa los límites de los intervalos
+  cut_points <- seq(data_min, data_max, by = inter)
+  
+  # Discretiza los datos asignando cada valor a su intervalo correspondiente
+  for (i in 1:(num_intervals - 1)) {
+    aux <- data[data >= cut_points[i] & data <= cut_points[i + 1]]
+    x_discretized[[i]] <- aux
+  }
+  
+  # Agrega los valores en el último intervalo
+  aux <- data[data >= cut_points[num_intervals]]
+  x_discretized[[num_intervals]] <- aux
+  
+  return(list(x_discretized, cut_points))
+}
+
+discretizeEW(array, 3)
+```
+
+En la siguiente función, al igual que en la anterior, recibimos un vector de tipo numérico y un número de intervalos. La diferencia es que, en este caso, discretizamos el vector con el método equal frequency.
+
+```{r}
+discretizeEF <- function(data, num_intervals) {
+  # Ordenar los valores de manera ascendente
+  sorted_data <- sort(data)
+  
+  # Calcular el tamaño objetivo de cada intervalo
+  total_observations <- length(sorted_data)
+  interval_size <- total_observations %/% num_intervals
+  
+  # Inicializar los intervalos y valores discretizados
+  intervals <- vector("list", num_intervals)
+  discretized_data <- vector("list", num_intervals)
+  interval_limits <- vector("numeric", num_intervals)
+  start_index <- 1
+  
+  # Asignar los valores a los intervalos correspondientes
+  for (i in 1:(num_intervals - 1)) {
+    interval <- sorted_data[start_index:(start_index + interval_size - 1)]
+    intervals[[i]] <- interval
+    interval_limits[i] <- interval[length(interval)]
+    start_index <- start_index + interval_size
+  }
+  
+  # Último intervalo (puede tener un tamaño diferente)
+  last_interval <- sorted_data[start_index:length(sorted_data)]
+  intervals[[num_intervals]] <- last_interval
+  interval_limits[num_intervals] <- last_interval[length(last_interval)]
+  
+  # Convertir los intervalos a listas de vectores
+  for (i in 1:num_intervals) {
+    discretized_data[[i]] <- as.list(intervals[[i]])
+  }
+  
+  return(list(discretized_data, interval_limits))
+}
+
+discretizeEF(array, 3)
+```
+En la siguiente función, calculamos la varianza de un vector.
+
+```{r}
+variance <- function(x) {
+  column_mean <- mean(x)
+  squared_diff <- (x - column_mean)^2
+  column_variance <- mean(squared_diff)
+  
+  return(column_variance)
+}
+
+variance(array)
+```
+
+Ahora calculamos la varianza de todas las columnas de un dataset.
+
+```{r}
+column_variances <- function(matrix) {
+  if (is.data.frame(matrix)) {
+    matrix <- as.matrix(matrix)
+  }
+  
+  num_columns <- ncol(matrix)
+  column_var <- numeric(num_columns)
+  
+  for (j in 1:num_columns) {
+    column_data <- matrix[, j]
+    column_var[j] <- var(column_data)
+  }
+  
+  return(column_var)
+}
+
+column_variances(dataset)
+```
+
+Ahora vamos a calcular el AUC.
+
+```{r}
+AUC <- function(df) {
+  df <- df[order(df$value), ]
+
+  # Obtiene el mínimo y el máximo del dataframe
+  min_value <- min(df$value)
+  max_value <- max(df$value)
+
+  # Genera 50 valores de corte equidistantes entre el mínimo y el máximo
+  cutoffs <- seq(min_value, max_value, length.out = 50)
+
+  # Variables para almacenar los valores acumulados de TP, TN, FP y FN
+  tp_total <- tn_total <- fp_total <- fn_total <- 0
+
+  tprs <- c()
+  fprs <- c()
+
+  # Recorre los valores de corte
+  for (i in 1:length(cutoffs)) {
+    # Crea una lista de predicciones para el valor de corte actual
+    prediction <- ifelse(df$value > cutoffs[i], 1, 0)
+
+    # Acumula los valores de TP, TN, FP y FN según corresponda
+    tp_total <- tp_total + sum(prediction == 1 & df$label == 1)
+    tn_total <- tn_total + sum(prediction == 0 & df$label == 0)
+    fp_total <- fp_total + sum(prediction == 1 & df$label == 0)
+    fn_total <- fn_total + sum(prediction == 0 & df$label == 1)
+
+    # Calcula el TPR y el FPR para la combinación actual de valores de corte
+    tpr <- ifelse(tp_total + fn_total == 0, 0, tp_total / (tp_total + fn_total))
+    fpr <- ifelse(fp_total + tn_total == 0, 0, fp_total / (fp_total + tn_total))
+
+    # Añade los valores a las listas
+    tprs <- c(tprs, tpr)
+    fprs <- c(fprs, fpr)
+  }
+
+  # Ordena los valores de fpr y tpr
+  tprs <- tprs[order(fprs)]
+  fprs <- sort(fprs)
+
+  # Calcula el área bajo la curva ROC
+  area <- sum(diff(fprs) * (tprs[-1] + tprs[-length(tprs)]) / 2)
+
+  return(list(area = area, tprs = tprs, fprs = fprs))
+}
+
+result <- AUC(df)
+result$area
+```
+
+A continuación, vamos a calcular la entropía de un vector numérico.
+
+```{r}
+entropy <- function(x) {
+  tam <- length(x)
+  unique_values <- unique(x)
+  pi <- rep(0, length(unique_values))
+  aux <- c()
+  i <- 1
+
+  for (j in x) {
+    if (!(j %in% aux)) {
+      # Mira si el elemento está en la lista. Si no está, +1 al contador.
+      cont <- 0
+      for (k in 1:length(x)) {
+        act <- x[k]
+        if (!(j %in% aux) && act == j) {
+          cont <- cont + 1
+        }
+      }
+      aux <- c(aux, j)
+      pi[i] <- cont
+      i <- i + 1
+    }
+  }
+
+  sum <- 0
+  for (i in 1:length(pi)) {
+    sum <- sum - (pi[i] / tam) * log2(pi[i] / tam)
+  }
+  return(sum)
+}
+
+entropia <- entropy(array)
+entropia
+```
+
+A continuación, calculamos la entropia de cada columna de un dataframe usando la función entropy que hemos implementado antes.
+
+```{r}
+column_entropy <- function(df) {
+  entropies <- c()
+  for (col in colnames(df)) {
+    entropies <- c(entropies, entropy(df[[col]]))
+  }
+  return(entropies)
+}
+
+entropies <- column_entropy(df)
+entropies
+```
+
+Ahora vamos a normalizar y estandarizar los datos del dataset. Para ello, los datos deben ser numéricos.
+
+```{r}
+dataset <- create_dataset(5, 15)
+dataset
+```
+
+```{r}
+normalize_standardize_dataset <- function(dataset, option) {
+  ds <- dataset
+  min_value <- min(ds)
+  max_value <- max(ds)
+  mean_value <- sum(ds[1,]) / length(ds[1,])
+  squared_diff_sum <- 0
+  for (x in ds[1,]) {
+    squared_diff <- (x - mean_value) ^ 2
+    squared_diff_sum <- squared_diff_sum + squared_diff
+  }
+  mean_squared_diff <- squared_diff_sum / length(ds[1,])
+  std_value <- sqrt(mean_squared_diff)
+
+  for (i in 1:nrow(ds)) {
+    for (j in 1:ncol(ds)) {
+      if (is.numeric(ds[i,j])) {
+        if (option == "normalize") {
+          ds[i,j] <- round((ds[i,j] - min_value) / (max_value - min_value), 10)
+        } else if (option == "standardize") {
+          ds[i,j] <- round((ds[i,j] - mean_value) / std_value, 10)
+        }
+      }
+    }
+  }
+  return(ds)
+}
+```
+
+```{r}
+dataset <- create_dataset(5, 15)
+print("Dataset normalizado:")
+dt_norm <- normalize_standardize_dataset(dataset, "normalize")
+dt_norm
+```
+
+```{r}
+dataset <- create_dataset(5, 15)
+print("Dataset estandarizado:")
+dt_estand <- normalize_standardize_dataset(dataset, "standardize")
+dt_estand
+```
+
+Para la función de filtrado, podemos hacer uso de las funciones column_variances() y colum_entropy(), que hemos implementado antes. Le pasamos los "threshold" que queremos aplicar al dataset.
+
+```{r}
+filter_variables <- function(df, entropy_threshold, variance_threshold) {
+  # Calculamos la varianza y la entropía de cada columna
+  variances <- column_variances(df)
+  entropies <- column_entropy(df)
+
+  # Filtramos las columnas que cumplen con los requisitos
+  filtered_columns <- character()
+  for (i in 1:length(df)) {
+    if (entropies[i] >= entropy_threshold && variances[i] >= variance_threshold) {
+      filtered_columns <- c(filtered_columns, names(df)[i])
+    }
+  }
+
+  # Creamos el nuevo dataframe con las columnas filtradas
+  filtered_df <- df[, filtered_columns]
+
+  return(filtered_df)
+}
+
+filtered_df <- filter_variables(df, 1, 1)
+filtered_df
+```
+
+Lo siguiente que vamos a hacer calcular la correlación o la información mutua de las columnas de un dataset. Para ello primera hay que saber que tipo de datos contiene la columna.
+
+```{r}
+column_type <- function(data) {
+  if (is.numeric(data)) {
+    return("numerical")
+  } else if (is.character(data)) {
+    return("categorical")
+  } else {
+    return("unknown")
+  }
+}
+
+data <- c(1, 2, 3, 4, 5)
+type <- column_type(data)
+type
+```
+
+Una vez sabemos que tipo es, si es de tipo numerical, calculamos la correlación de los datos. Si el tipo de dato es catergorical, calculamos la información mutua entre las columnas.
+
+```{r}
+correlation <- function(dataset) {
+  # Determinamos el tipo de cada columna
+  column_types <- sapply(dataset, column_type)
+  
+  # Calculamos la correlación o la información mutua entre todos los pares de columnas
+  correlations <- list()
+  for (i in 1:(length(dataset)-1)) {
+    for (j in (i+1):length(dataset)) {
+      column_i <- dataset[[i]]
+      column_j <- dataset[[j]]
+      
+      if (column_types[i] == "numerical" && column_types[j] == "numerical") {
+        # Calculamos la correlación entre dos columnas numéricas
+        correlation <- cor(column_i, column_j)
+        correlations <- c(correlations, list(list(i = i, j = j, correlation = correlation)))
+      } else if (column_types[i] == "categorical" && column_types[j] == "categorical") {
+        # Calculamos la información mutua entre dos columnas categóricas
+        table_i <- table(column_i)
+        table_j <- table(column_j)
+        table_ij <- table(column_i, column_j)
+        
+        mutual_information <- 0
+        for (value_i in levels(column_i)) {
+          for (value_j in levels(column_j)) {
+            p_i <- table_i[value_i] / length(column_i)
+            p_j <- table_j[value_j] / length(column_j)
+            p_ij <- table_ij[value_i, value_j] / length(column_i)
+            
+            if (p_i != 0 && p_j != 0 && p_ij != 0) {
+              mutual_information <- mutual_information + p_ij * log2(p_ij / (p_i * p_j))
+            }
+          }
+        }
+        
+        correlations <- c(correlations, list(list(i = i, j = j, mutual_information = mutual_information)))
+      }
+    }
+  }
+  
+  return(correlations)
+}
+
+dataset <- create_dataset(5, 15)
+correlaciones <- correlation(dataset)
+correlaciones
+```
+
+Vamos por último a visualizar con diferentes gráficas algunos resultados.
+
+Empezamos por el AUC.
+
+```{r}
+plot_auc <- function(data) {
+  result <- AUC(data)
+  fprs <- result[[2]]
+  tprs <- result[[3]]
+  
+  plot(fprs, tprs, type = "p", xlab = "False Positive Rate", ylab = "True Positive Rate")
+}
+
+plot_auc(df)
+```
+
+Por último, obtenemos las gráficas de las correlaciones.
+
+```{r}
+plot_corr_mutual_info <- function(data) {
+  correlations <- correlation(data)
+  
+  # Obtenemos las correlaciones para los pares de columnas numéricas
+  numerical_correlations <- list()
+  for (i in 1:length(correlations)) {
+      cor <- correlations[[i]][[3]]
+      if (is.double(cor)) {
+          numerical_correlations <- c(numerical_correlations, list(correlations[[i]]))
+      }
+  }
+  numerical_correlations
+
+  # Dibujamos un gráfico de dispersión para cada par de columnas numéricas
+  for (row in numerical_correlations) {
+    i <- row[[1]]
+    j <- row[[2]]
+    cor <- row[[3]]
+    plot(i, j, xlim = c(0, max(i)), ylim = c(0, max(j)),
+         pch = 19, col = ifelse(cor > 0, "red", "blue"),
+         cex = abs(cor) * 50,
+         xlab = "Columna i", ylab = "Columna j",
+         main = "Gráfico de dispersión de correlaciones numéricas")
+}
+
+}
+
+plot_corr_mutual_info(dataset)
+```
+
